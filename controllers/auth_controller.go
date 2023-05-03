@@ -22,6 +22,7 @@ import (
 	"strings"
 
 	b64 "encoding/base64"
+	"encoding/json"
 
 	coreV1 "k8s.io/api/core/v1"
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -45,6 +46,20 @@ type AuthReconciler struct {
 	Scheme *runtime.Scheme
 }
 
+type WifConfig struct {
+	Type                           string `json:"type"`
+	Audience                       string `json:"audience"`
+	SubjectTokenType               string `json:"subject_token_type"`
+	TokenURL                       string `json:"token_url"`
+	ServiceAccountImpersonationURL string `json:"service_account_impersonation_url"`
+	CredentialSource               struct {
+		File   string `json:"file"`
+		Format struct {
+			Type string `json:"type"`
+		} `json:"format"`
+	} `json:"credential_source"`
+}
+
 func kubernetesAuthToken() *authenticationV1.TokenRequest {
 	ExpirationSeconds := int64(3600)
 
@@ -60,7 +75,7 @@ func kubernetesAuthToken() *authenticationV1.TokenRequest {
 
 }
 
-func gcpAccessToken(wifConfig string) string {
+func gcpAccessToken(wifConfig []byte) string {
 	// https://stackoverflow.com/questions/72275338/get-access-token-for-a-google-cloud-service-account-in-golang
 	var token *oauth2.Token
 	ctx := context.Background()
@@ -166,10 +181,41 @@ func (r *AuthReconciler) Reconcile(reconcilerContext context.Context, req ctrl.R
 	}
 	println()
 
-	d1 := []byte(k8sAuthToken.Status.Token)
-	_ = os.WriteFile("/var/run/secrets/openshift/serviceaccount/token", d1, 0644) // Need to make the unique per user namespace+service-account, can gcp credential source json support reading from variable instead of file?
+	tokenDirectory := "/tmp/tokens/"
+	tokenName := req.NamespacedName.Namespace + "-" + artifactRegistryAuth.Spec.WifConfig.ServiceAccount
+	tokenPath := tokenDirectory + tokenName
 
-	accessToken := gcpAccessToken(wifConfig)
+	err = os.Mkdir(tokenDirectory, 0755)
+	if err != nil {
+		println(err.Error())
+	}
+
+	d1 := []byte(k8sAuthToken.Status.Token)
+	err = os.WriteFile(tokenPath, d1, 0644) // Can this be done without using the filesystem?
+	if err != nil {
+		println(err.Error())
+	}
+
+	WifConfigJSON := WifConfig{}
+
+	err = json.Unmarshal([]byte(wifConfig), &WifConfigJSON)
+	if err != nil {
+		println(err.Error())
+	}
+
+	WifConfigJSON.CredentialSource.File = tokenPath
+
+	WifConfigByte, err := json.Marshal(WifConfigJSON)
+	if err != nil {
+		println(err.Error())
+	}
+
+	accessToken := gcpAccessToken(WifConfigByte)
+
+	err = os.Remove(tokenPath)
+	if err != nil {
+		println(err.Error())
+	}
 
 	dockerConfig := imagePullSecretConfig(artifactRegistryAuth.Spec.Registry, accessToken)
 
