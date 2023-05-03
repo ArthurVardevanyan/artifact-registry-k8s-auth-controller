@@ -1,0 +1,13 @@
+apiVersion: artifact-registry.arthurvardevanyan.com/v1beta1
+kind: Auth
+metadata:
+  name: example
+  namespace: smoke-tests
+spec:
+  registry: us-central1-docker.pkg.dev
+  secretName: artifact-registry-auth
+  wifConfig:
+    fileName: credentials_config.json
+    objectName: google-wif-config
+    serviceAccount: wif-test
+    type: configmap
