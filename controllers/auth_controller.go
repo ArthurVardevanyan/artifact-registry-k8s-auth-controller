@@ -18,6 +18,7 @@ package controllers
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"strings"
 
@@ -75,7 +76,7 @@ func kubernetesAuthToken() *authenticationV1.TokenRequest {
 
 }
 
-func gcpAccessToken(wifConfig []byte) string {
+func gcpAccessToken(wifConfig []byte) *oauth2.Token {
 	// https://stackoverflow.com/questions/72275338/get-access-token-for-a-google-cloud-service-account-in-golang
 	var token *oauth2.Token
 	ctx := context.Background()
@@ -100,7 +101,7 @@ func gcpAccessToken(wifConfig []byte) string {
 		println(err.Error())
 	}
 
-	return token.AccessToken
+	return token
 }
 
 func imagePullSecretConfig(REGISTRY string, TOKEN string) string {
@@ -187,7 +188,9 @@ func (r *AuthReconciler) Reconcile(reconcilerContext context.Context, req ctrl.R
 
 	err = os.Mkdir(tokenDirectory, 0755)
 	if err != nil {
-		println(err.Error())
+		if !strings.Contains(err.Error(), "file exists") {
+			println(err.Error())
+		}
 	}
 
 	d1 := []byte(k8sAuthToken.Status.Token)
@@ -210,14 +213,16 @@ func (r *AuthReconciler) Reconcile(reconcilerContext context.Context, req ctrl.R
 		println(err.Error())
 	}
 
-	accessToken := gcpAccessToken(WifConfigByte)
+	token := gcpAccessToken(WifConfigByte)
+
+	artifactRegistryAuth.Status.TokenExpiration = token.Expiry.Format("2006-01-02T15:04:05.999999-07:00")
 
 	err = os.Remove(tokenPath)
 	if err != nil {
 		println(err.Error())
 	}
 
-	dockerConfig := imagePullSecretConfig(artifactRegistryAuth.Spec.RegistryLocation, accessToken)
+	dockerConfig := imagePullSecretConfig(artifactRegistryAuth.Spec.RegistryLocation, token.AccessToken)
 
 	imagePullSecret := imagePullSecretObject(artifactRegistryAuth.Spec.SecretName, req.NamespacedName.Namespace, dockerConfig)
 
@@ -227,6 +232,10 @@ func (r *AuthReconciler) Reconcile(reconcilerContext context.Context, req ctrl.R
 		if err != nil {
 			print(err)
 		}
+	}
+
+	if err := r.Status().Update(reconcilerContext, &artifactRegistryAuth); err != nil {
+		return ctrl.Result{}, fmt.Errorf("unable to update Artifact Registry Auth status: %w", err)
 	}
 
 	return ctrl.Result{}, nil

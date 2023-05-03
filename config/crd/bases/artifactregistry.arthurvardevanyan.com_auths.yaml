@@ -118,6 +118,13 @@ spec:
             type: object
           status:
             description: AuthStatus defines the observed state of Auth
+            properties:
+              error:
+                description: Output of Any Errors
+                type: string
+              tokenExpiration:
+                description: When the Current Token Expires
+                type: string
             type: object
         type: object
     served: true

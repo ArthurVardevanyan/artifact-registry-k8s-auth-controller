@@ -45,8 +45,10 @@ type AuthSpec struct {
 
 // AuthStatus defines the observed state of Auth
 type AuthStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	// When the Current Token Expires
+	TokenExpiration string `json:"tokenExpiration,omitempty"`
+	// Output of Any Errors
+	Error string `json:"error,omitempty"`
 }
 
 //+kubebuilder:object:root=true
