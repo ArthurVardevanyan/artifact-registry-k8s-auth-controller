@@ -18,12 +18,15 @@ package controllers
 
 import (
 	"context"
+	"os"
 	"strings"
 
 	b64 "encoding/base64"
 
 	coreV1 "k8s.io/api/core/v1"
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	authenticationV1 "k8s.io/api/authentication/v1"
 
 	"golang.org/x/oauth2"
 	auth "golang.org/x/oauth2/google"
@@ -40,6 +43,21 @@ import (
 type AuthReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
+}
+
+func kubernetesAuthToken() *authenticationV1.TokenRequest {
+	ExpirationSeconds := int64(3600)
+
+	tokenRequest := &authenticationV1.TokenRequest{
+
+		Spec: authenticationV1.TokenRequestSpec{
+			Audiences:         []string{"openshift"},
+			ExpirationSeconds: &ExpirationSeconds,
+		},
+	}
+
+	return tokenRequest
+
 }
 
 func gcpAccessToken(wifConfig string) string {
@@ -132,14 +150,32 @@ func (r *AuthReconciler) Reconcile(reconcilerContext context.Context, req ctrl.R
 
 	wifConfig := gcpCredentials.Data[artifactRegistryAuth.Spec.WifConfig.FileName]
 
-	//TODO: Generate Token for Service Account
+	k8sAuthToken := kubernetesAuthToken()
+
+	var serviceAccount coreV1.ServiceAccount
+
+	if err := r.Get(reconcilerContext, client.ObjectKey{Name: artifactRegistryAuth.Spec.WifConfig.ServiceAccount, Namespace: req.NamespacedName.Namespace}, &serviceAccount); err != nil {
+		println(err.Error())
+	}
+
+	//err := r.Create(reconcilerContext, k8sAuthToken)
+	err := r.SubResource("token").Create(reconcilerContext, &serviceAccount, k8sAuthToken)
+	if err != nil {
+		print(err.Error())
+		return ctrl.Result{}, nil
+	}
+	println()
+
+	d1 := []byte(k8sAuthToken.Status.Token)
+	_ = os.WriteFile("/var/run/secrets/openshift/serviceaccount/token", d1, 0644) // Need to make the unique per user namespace+service-account, can gcp credential source json support reading from variable instead of file?
+
 	accessToken := gcpAccessToken(wifConfig)
 
 	dockerConfig := imagePullSecretConfig(artifactRegistryAuth.Spec.Registry, accessToken)
 
 	imagePullSecret := imagePullSecretObject(artifactRegistryAuth.Spec.SecretName, req.NamespacedName.Namespace, dockerConfig)
 
-	err := r.Update(reconcilerContext, imagePullSecret)
+	err = r.Update(reconcilerContext, imagePullSecret)
 	if err != nil {
 		err = r.Create(reconcilerContext, imagePullSecret)
 		if err != nil {
