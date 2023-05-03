@@ -35,10 +35,21 @@ spec:
           spec:
             description: AuthSpec defines the desired state of Auth
             properties:
-              foo:
-                description: Foo is an example field of Auth. Edit auth_types.go to
-                  remove/update
+              registry:
                 type: string
+              secretName:
+                type: string
+              wifConfig:
+                properties:
+                  fileName:
+                    type: string
+                  objectName:
+                    type: string
+                  serviceAccount:
+                    type: string
+                  type:
+                    type: string
+                type: object
             type: object
           status:
             description: AuthStatus defines the observed state of Auth

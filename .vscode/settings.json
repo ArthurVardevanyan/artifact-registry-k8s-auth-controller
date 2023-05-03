@@ -26,14 +26,18 @@
         "editor.defaultFormatter": "redhat.vscode-yaml"
     },
     "cSpell.words": [
+        "accesstoken",
         "alertmanager",
         "apimachinery",
         "arthurvardevanyan",
+        "artifactregistryv",
+        "auths",
         "clientset",
         "clusterrolebinding",
         "controllerutil",
         "corev",
         "deepcopy",
+        "dockerconfigjson",
         "finalizers",
         "homelab",
         "kubebuilder",

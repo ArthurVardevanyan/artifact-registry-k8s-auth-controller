@@ -18,6 +18,15 @@ package controllers
 
 import (
 	"context"
+	"strings"
+
+	b64 "encoding/base64"
+
+	coreV1 "k8s.io/api/core/v1"
+	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"golang.org/x/oauth2"
+	auth "golang.org/x/oauth2/google"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -33,6 +42,61 @@ type AuthReconciler struct {
 	Scheme *runtime.Scheme
 }
 
+func gcpAccessToken(wifConfig string) string {
+	// https://stackoverflow.com/questions/72275338/get-access-token-for-a-google-cloud-service-account-in-golang
+	var token *oauth2.Token
+	ctx := context.Background()
+
+	scopes := []string{
+		"https://www.googleapis.com/auth/cloud-platform",
+	}
+
+	credentials, err := auth.CredentialsFromJSON(ctx, []byte(wifConfig), scopes...)
+	//credentials, err := auth.FindDefaultCredentials(ctx, scopes...)
+	if err == nil {
+		//println("found default credentials. %v", credentials)
+
+		token, err = credentials.TokenSource.Token()
+
+		//log.Printf("token: %v", strings.Split(token.AccessToken, "token:"))
+		if err != nil {
+			println(err.Error())
+		}
+
+	} else {
+		println(err.Error())
+	}
+
+	return token.AccessToken
+}
+
+func imagePullSecretConfig(REGISTRY string, TOKEN string) string {
+
+	const ImagePullSecretTemplate = "{\"auths\": {\"REGISTRY\": {\"auth\": \"BASE64TOKEN\"}}}"
+
+	BASE64TOKEN := b64.StdEncoding.EncodeToString([]byte("oauth2accesstoken:" + TOKEN))
+
+	ImagePullSecret := strings.Replace(ImagePullSecretTemplate, "REGISTRY", REGISTRY, 1)
+	ImagePullSecret = strings.Replace(ImagePullSecret, "BASE64TOKEN", BASE64TOKEN, 1)
+
+	return ImagePullSecret
+}
+
+func imagePullSecretObject(name string, namespace string, dockerConfig string) *coreV1.Secret {
+	// https://stackoverflow.com/questions/64758486/how-to-create-docker-secret-with-client-go
+
+	secret := &coreV1.Secret{
+		ObjectMeta: metaV1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+		Type:       "kubernetes.io/dockerconfigjson",
+		StringData: map[string]string{".dockerconfigjson": dockerConfig},
+	}
+
+	return secret
+}
+
 //+kubebuilder:rbac:groups=artifact-registry.arthurvardevanyan.com,resources=auths,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=artifact-registry.arthurvardevanyan.com,resources=auths/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=artifact-registry.arthurvardevanyan.com,resources=auths/finalizers,verbs=update
@@ -46,10 +110,42 @@ type AuthReconciler struct {
 //
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.14.1/pkg/reconcile
-func (r *AuthReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	_ = log.FromContext(ctx)
+func (r *AuthReconciler) Reconcile(reconcilerContext context.Context, req ctrl.Request) (ctrl.Result, error) {
+	log := log.FromContext(reconcilerContext)
+	log.V(1).Info(req.Name)
 
-	// TODO(user): your logic here
+	// Incept Object
+	var artifactRegistryAuth artifactregistryv1beta1.Auth
+	if err := r.Get(reconcilerContext, req.NamespacedName, &artifactRegistryAuth); err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			log.V(1).Info("Artifact Registry Auth Object Not Found or No Longer Exists!")
+			return ctrl.Result{}, nil
+		} else {
+			log.Error(err, "Unable to fetch Artifact Registry Auth Object")
+			return ctrl.Result{}, client.IgnoreNotFound(err)
+		}
+	}
+
+	var gcpCredentials coreV1.ConfigMap
+
+	r.Get(reconcilerContext, client.ObjectKey{Name: artifactRegistryAuth.Spec.WifConfig.ObjectName, Namespace: req.NamespacedName.Namespace}, &gcpCredentials)
+
+	wifConfig := gcpCredentials.Data[artifactRegistryAuth.Spec.WifConfig.FileName]
+
+	//TODO: Generate Token for Service Account
+	accessToken := gcpAccessToken(wifConfig)
+
+	dockerConfig := imagePullSecretConfig(artifactRegistryAuth.Spec.Registry, accessToken)
+
+	imagePullSecret := imagePullSecretObject(artifactRegistryAuth.Spec.SecretName, req.NamespacedName.Namespace, dockerConfig)
+
+	err := r.Update(reconcilerContext, imagePullSecret)
+	if err != nil {
+		err = r.Create(reconcilerContext, imagePullSecret)
+		if err != nil {
+			print(err)
+		}
+	}
 
 	return ctrl.Result{}, nil
 }

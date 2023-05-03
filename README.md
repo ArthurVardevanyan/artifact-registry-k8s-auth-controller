@@ -1,4 +1,4 @@
-# artifact-registry-k8s-auth-controller
+# artifact-registry-k8s-auth-controller (WIP)
 
 This is an abstraction to convert the openshift monitoring, and openshift user workload monitoring configmaps into custom resources.
 
