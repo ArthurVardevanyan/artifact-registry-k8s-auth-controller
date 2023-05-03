@@ -6,7 +6,7 @@ metadata:
   name: manager-role
 rules:
 - apiGroups:
-  - artifact-registry.arthurvardevanyan.com
+  - artifactregistry.arthurvardevanyan.com
   resources:
   - auths
   verbs:
@@ -18,13 +18,13 @@ rules:
   - update
   - watch
 - apiGroups:
-  - artifact-registry.arthurvardevanyan.com
+  - artifactregistry.arthurvardevanyan.com
   resources:
   - auths/finalizers
   verbs:
   - update
 - apiGroups:
-  - artifact-registry.arthurvardevanyan.com
+  - artifactregistry.arthurvardevanyan.com
   resources:
   - auths/status
   verbs:

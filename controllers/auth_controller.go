@@ -109,7 +109,7 @@ func imagePullSecretConfig(REGISTRY string, TOKEN string) string {
 
 	BASE64TOKEN := b64.StdEncoding.EncodeToString([]byte("oauth2accesstoken:" + TOKEN))
 
-	ImagePullSecret := strings.Replace(ImagePullSecretTemplate, "REGISTRY", REGISTRY, 1)
+	ImagePullSecret := strings.Replace(ImagePullSecretTemplate, "REGISTRY-docker.pkg.dev", REGISTRY, 1)
 	ImagePullSecret = strings.Replace(ImagePullSecret, "BASE64TOKEN", BASE64TOKEN, 1)
 
 	return ImagePullSecret
@@ -130,9 +130,9 @@ func imagePullSecretObject(name string, namespace string, dockerConfig string) *
 	return secret
 }
 
-//+kubebuilder:rbac:groups=artifact-registry.arthurvardevanyan.com,resources=auths,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=artifact-registry.arthurvardevanyan.com,resources=auths/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=artifact-registry.arthurvardevanyan.com,resources=auths/finalizers,verbs=update
+//+kubebuilder:rbac:groups=artifactregistry.arthurvardevanyan.com,resources=auths,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=artifactregistry.arthurvardevanyan.com,resources=auths/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=artifactregistry.arthurvardevanyan.com,resources=auths/finalizers,verbs=update
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -217,7 +217,7 @@ func (r *AuthReconciler) Reconcile(reconcilerContext context.Context, req ctrl.R
 		println(err.Error())
 	}
 
-	dockerConfig := imagePullSecretConfig(artifactRegistryAuth.Spec.Registry, accessToken)
+	dockerConfig := imagePullSecretConfig(artifactRegistryAuth.Spec.RegistryLocation, accessToken)
 
 	imagePullSecret := imagePullSecretObject(artifactRegistryAuth.Spec.SecretName, req.NamespacedName.Namespace, dockerConfig)
 

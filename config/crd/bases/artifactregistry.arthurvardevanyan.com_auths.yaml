@@ -1,0 +1,126 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.11.1
+  creationTimestamp: null
+  name: auths.artifactregistry.arthurvardevanyan.com
+spec:
+  group: artifactregistry.arthurvardevanyan.com
+  names:
+    kind: Auth
+    listKind: AuthList
+    plural: auths
+    singular: auth
+  scope: Namespaced
+  versions:
+  - name: v1beta1
+    schema:
+      openAPIV3Schema:
+        description: Auth is the Schema for the auths API
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: Contains the Fields Related to configuring GCP Workload Identity
+              Federation
+            properties:
+              registryLocation:
+                description: Location of GCP Artifact Registry Being Used.
+                enum:
+                - us
+                - asia
+                - europe
+                - northamerica-northeast1
+                - northamerica-northeast2
+                - us-central1
+                - us-east1
+                - us-east4
+                - us-east5
+                - us-south1
+                - us-west1
+                - us-west2
+                - us-west3
+                - us-west4
+                - southamerica-east1
+                - southamerica-west1
+                - europe-central2
+                - europe-north1
+                - europe-southwest1
+                - europe-west1
+                - europe-west2
+                - europe-west3
+                - europe-west4
+                - europe-west6
+                - europe-west8
+                - europe-west9
+                - europe-west12
+                - me-central1
+                - me-west1
+                - asia-east1
+                - asia-east2
+                - asia-northeast1
+                - asia-northeast2
+                - asia-northeast3
+                - asia-south1
+                - asia-south2
+                - asia-southeast1
+                - asia-southeast2
+                - australia-southeast1
+                - australia-southeast2
+                type: string
+              secretName:
+                description: Name of the Secret to Save the Image Pull Secrt Too
+                type: string
+              wifConfig:
+                description: Contains the Fields Related to configuring GCP Workload
+                  Identity Federation
+                properties:
+                  fileName:
+                    description: 'The Name of the File Within the Object, Generally:
+                      credentials_config.json'
+                    type: string
+                  objectName:
+                    description: The Name of the Kubernetes Objec Containing the Workload
+                      Identity Json Config
+                    type: string
+                  serviceAccount:
+                    description: The Kubernetes Service Account That is Bound to a
+                      Google Service Account with Artifact Registry Reader
+                    type: string
+                  type:
+                    description: Whether the Object is a Secret or ConfigMap
+                    enum:
+                    - configMap
+                    - secret
+                    type: string
+                required:
+                - fileName
+                - objectName
+                - serviceAccount
+                - type
+                type: object
+            required:
+            - registryLocation
+            - secretName
+            - wifConfig
+            type: object
+          status:
+            description: AuthStatus defines the observed state of Auth
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

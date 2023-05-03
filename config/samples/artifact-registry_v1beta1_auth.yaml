@@ -1,4 +1,4 @@
-apiVersion: artifact-registry.arthurvardevanyan.com/v1beta1
+apiVersion: artifactregistry.arthurvardevanyan.com/v1beta1
 kind: Auth
 metadata:
   labels:

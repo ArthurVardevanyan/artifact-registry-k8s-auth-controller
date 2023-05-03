@@ -11,17 +11,17 @@ metadata:
     app.kubernetes.io/managed-by: kustomize
   name: auth-viewer-role
 rules:
-- apiGroups:
-  - artifact-registry.arthurvardevanyan.com
-  resources:
-  - auths
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - artifact-registry.arthurvardevanyan.com
-  resources:
-  - auths/status
-  verbs:
-  - get
+  - apiGroups:
+      - artifactregistry.arthurvardevanyan.com
+    resources:
+      - auths
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - artifactregistry.arthurvardevanyan.com
+    resources:
+      - auths/status
+    verbs:
+      - get

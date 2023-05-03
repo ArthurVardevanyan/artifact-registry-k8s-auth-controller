@@ -30,6 +30,7 @@
         "alertmanager",
         "apimachinery",
         "arthurvardevanyan",
+        "artifactregistry",
         "artifactregistryv",
         "auths",
         "clientset",

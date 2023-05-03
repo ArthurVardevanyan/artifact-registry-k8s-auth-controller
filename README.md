@@ -13,7 +13,7 @@ How to Repo was setup
 
 ```bash
 kubebuilder init --domain arthurvardevanyan.com --repo github.com/ArthurVardevanyan/artifact-registry-k8s-auth-controller
-kubebuilder create api --group artifact-registry --version v1beta1 --kind Auth --namespaced=true
+kubebuilder create api --group artifactregistry --version v1beta1 --kind Auth --namespaced=true
 ```
 
 ## Getting Started
