@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	b64 "encoding/base64"
 	"encoding/json"
@@ -61,8 +62,8 @@ type WifConfig struct {
 	} `json:"credential_source"`
 }
 
-func kubernetesAuthToken() *authenticationV1.TokenRequest {
-	ExpirationSeconds := int64(3600)
+func kubernetesAuthToken(expirationSeconds int) *authenticationV1.TokenRequest {
+	ExpirationSeconds := int64(expirationSeconds)
 
 	tokenRequest := &authenticationV1.TokenRequest{
 
@@ -166,7 +167,8 @@ func (r *AuthReconciler) Reconcile(reconcilerContext context.Context, req ctrl.R
 
 	wifConfig := gcpCredentials.Data[artifactRegistryAuth.Spec.WifConfig.FileName]
 
-	k8sAuthToken := kubernetesAuthToken()
+	const expirationSeconds = 3600
+	k8sAuthToken := kubernetesAuthToken(expirationSeconds)
 
 	var serviceAccount coreV1.ServiceAccount
 
@@ -238,7 +240,7 @@ func (r *AuthReconciler) Reconcile(reconcilerContext context.Context, req ctrl.R
 		return ctrl.Result{}, fmt.Errorf("unable to update Artifact Registry Auth status: %w", err)
 	}
 
-	return ctrl.Result{}, nil
+	return ctrl.Result{RequeueAfter: time.Duration(time.Second * (expirationSeconds - 60))}, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
