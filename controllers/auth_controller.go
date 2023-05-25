@@ -111,7 +111,7 @@ func imagePullSecretConfig(REGISTRY string, TOKEN string) string {
 
 	BASE64TOKEN := b64.StdEncoding.EncodeToString([]byte("oauth2accesstoken:" + TOKEN))
 
-	ImagePullSecret := strings.Replace(ImagePullSecretTemplate, "REGISTRY-docker.pkg.dev", REGISTRY, 1)
+	ImagePullSecret := strings.Replace(ImagePullSecretTemplate, "REGISTRY", REGISTRY+"-docker.pkg.dev", 1)
 	ImagePullSecret = strings.Replace(ImagePullSecret, "BASE64TOKEN", BASE64TOKEN, 1)
 
 	return ImagePullSecret

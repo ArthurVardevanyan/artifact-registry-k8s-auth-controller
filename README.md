@@ -28,8 +28,8 @@ go mod tidy
 ```
 
 ```bash
-# https://catalog.redhat.com/software/containers/ubi9-minimal/
-export KO_DEFAULTBASEIMAGE=registry.access.redhat.com/ubi9-minimal:9.1.0-1829
+# https://catalog.redhat.com/software/containers/ubi9/ubi-minimal/
+export KO_DEFAULTBASEIMAGE=registry.access.redhat.com/ubi9-minimal:9.2-484
 export DATE=$(date --utc '+%Y%m%d-%H%M')
 
 # For OpenShift

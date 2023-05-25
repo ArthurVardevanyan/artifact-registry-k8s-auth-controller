@@ -100,10 +100,9 @@ spec:
                       Google Service Account with Artifact Registry Reader
                     type: string
                   type:
-                    description: Whether the Object is a Secret or ConfigMap
+                    description: Object Type, must be ConfigMap
                     enum:
                     - configMap
-                    - secret
                     type: string
                 required:
                 - fileName

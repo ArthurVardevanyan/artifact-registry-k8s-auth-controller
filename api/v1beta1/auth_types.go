@@ -21,8 +21,8 @@ import (
 )
 
 type WifConfig struct {
-	// Whether the Object is a Secret or ConfigMap
-	// +kubebuilder:validation:Enum=configMap;secret
+	// Object Type, must be ConfigMap
+	// +kubebuilder:validation:Enum=configMap
 	Type string `json:"type"`
 	// The Name of the Kubernetes Objec Containing the Workload Identity Json Config
 	ObjectName string `json:"objectName"`
