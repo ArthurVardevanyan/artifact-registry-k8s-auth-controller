@@ -49,8 +49,8 @@ func getEnv(key, fallback string) string {
 var _ = Describe("Artifact Registry controller", func() {
 
 	const (
-		timeout  = time.Second * 60
-		duration = time.Second * 60
+		timeout  = time.Second * 10
+		duration = time.Second * 10
 		interval = time.Millisecond * 250
 	)
 	var ObjectName = getEnv("OBJECT_NAME", "test")
