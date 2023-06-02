@@ -25,12 +25,14 @@ As usual, we start with the necessary imports. We also define some utility varia
 package controllers
 
 import (
-	"context"
 	"os"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 
 	artifactregistryv1beta1 "github.com/ArthurVardevanyan/artifact-registry-k8s-auth-controller/api/v1beta1"
 )
@@ -46,13 +48,23 @@ func getEnv(key, fallback string) string {
 
 var _ = Describe("Artifact Registry controller", func() {
 
+	const (
+		timeout  = time.Second * 60
+		duration = time.Second * 60
+		interval = time.Millisecond * 250
+	)
 	var ObjectName = getEnv("OBJECT_NAME", "test")
 	var ObjectNamespace = getEnv("OBJECT_NAMESPACE", "smoke-tests")
+
+	var RegistryLocation = getEnv("REGISTRY_LOCATION", "us-central1")
+	var SecretName = getEnv("SECRET_NAME", "artifact-registry-auth-test")
+	var ConfigName = getEnv("CONFIG_NAME", "google-wif-config")
+	var ServiceAccount = getEnv("SERVICE_ACCOUNT", "wif-test")
 
 	Context("Creating an Auth Object", func() {
 		It("Should Read a WIF ConfigMap, and Create a Secret with a Short Lived Token", func() {
 			By("By creating a new Artifact Registry Auth Object")
-			ctx := context.Background()
+			// ctx := context.Background()
 			Auth := &artifactregistryv1beta1.Auth{
 				TypeMeta: metav1.TypeMeta{
 					APIVersion: "artifactregistry.arthurvardevanyan.com/v1beta1",
@@ -63,20 +75,46 @@ var _ = Describe("Artifact Registry controller", func() {
 					Namespace: ObjectNamespace,
 				},
 				Spec: artifactregistryv1beta1.AuthSpec{
-					RegistryLocation: "us-central1",
-					SecretName:       "artifact-registry-auth",
+					RegistryLocation: RegistryLocation,
+					SecretName:       SecretName,
 					WifConfig: artifactregistryv1beta1.WifConfig{
 						FileName:       "credentials_config.json",
-						ObjectName:     "google-wif-config",
-						ServiceAccount: "wif-test",
+						ObjectName:     ConfigName,
+						ServiceAccount: ServiceAccount,
 						Type:           "configMap",
 					},
 				},
 			}
-			Expect(k8sClient.Create(ctx, Auth)).Should(Succeed())
 
-			// Garbage Collect Resources
-			Expect(k8sClient.Delete(ctx, Auth)).Should(Succeed())
+			secretLookUpKey := types.NamespacedName{Name: SecretName, Namespace: ObjectNamespace}
+			createdSecret := &v1.Secret{}
+
+			k8sClient.Delete(ctx, Auth)
+			k8sClient.Get(ctx, secretLookUpKey, createdSecret)
+			k8sClient.Delete(ctx, createdSecret)
+
+			Expect(k8sManager.GetClient().Create(ctx, Auth)).Should(Succeed())
+
+			objectLookUpKey := types.NamespacedName{Name: ObjectName, Namespace: ObjectNamespace}
+			createdObject := &artifactregistryv1beta1.Auth{}
+
+			// We'll need to retry getting this newly created CronJob, given that creation may not immediately happen.
+			Eventually(func() bool {
+				err := k8sClient.Get(ctx, objectLookUpKey, createdObject)
+				return err == nil
+			}, timeout, interval).Should(BeTrue())
+			// Let's make sure our Schedule string value was properly converted/handled.
+			Expect(createdObject.Spec.SecretName).Should(Equal(SecretName))
+
+			// We'll need to retry getting this newly created CronJob, given that creation may not immediately happen.
+			Eventually(func() bool {
+				err := k8sClient.Get(ctx, secretLookUpKey, createdSecret)
+				return err == nil
+			}, timeout, interval).Should(BeTrue())
+			// Let's make sure our Schedule string value was properly converted/handled.
+
+			k8sClient.Delete(ctx, Auth)
+			k8sClient.Delete(ctx, createdSecret)
 
 		})
 	})
