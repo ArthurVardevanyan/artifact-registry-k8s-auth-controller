@@ -42,6 +42,10 @@ import (
 	artifactregistryv1beta1 "github.com/ArthurVardevanyan/artifact-registry-k8s-auth-controller/api/v1beta1"
 )
 
+func BoolPointer(b bool) *bool {
+	return &b
+}
+
 // AuthReconciler reconciles a Auth object
 type AuthReconciler struct {
 	client.Client
