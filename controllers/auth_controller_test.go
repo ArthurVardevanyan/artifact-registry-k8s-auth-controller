@@ -93,7 +93,7 @@ var _ = Describe("Artifact Registry controller", func() {
 			k8sClient.Get(ctx, secretLookUpKey, createdSecret)
 			k8sClient.Delete(ctx, createdSecret)
 
-			Expect(k8sManager.GetClient().Create(ctx, Auth)).Should(Succeed())
+			Expect(k8sClient.Create(ctx, Auth)).Should(Succeed())
 
 			objectLookUpKey := types.NamespacedName{Name: ObjectName, Namespace: ObjectNamespace}
 			createdObject := &artifactregistryv1beta1.Auth{}
@@ -116,6 +116,54 @@ var _ = Describe("Artifact Registry controller", func() {
 			k8sClient.Delete(ctx, Auth)
 			k8sClient.Delete(ctx, createdSecret)
 
+		})
+
+		It("Should Return an Error for Invalid ConfigMap file", func() {
+			By("By creating an Artifact Registry Auth Object with an Invalid ConfigMap Fle")
+			// ctx := context.Background()
+			Auth := &artifactregistryv1beta1.Auth{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "artifactregistry.arthurvardevanyan.com/v1beta1",
+					Kind:       "Auth",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      ObjectName,
+					Namespace: ObjectNamespace,
+				},
+				Spec: artifactregistryv1beta1.AuthSpec{
+					RegistryLocation: RegistryLocation,
+					SecretName:       SecretName,
+					WifConfig: artifactregistryv1beta1.WifConfig{
+						FileName:       "credentials_config-bad.json",
+						ObjectName:     ConfigName,
+						ServiceAccount: ServiceAccount,
+						Type:           "configMap",
+					},
+				},
+			}
+
+			secretLookUpKey := types.NamespacedName{Name: SecretName, Namespace: ObjectNamespace}
+			createdSecret := &v1.Secret{}
+
+			k8sClient.Delete(ctx, Auth)
+			k8sClient.Get(ctx, secretLookUpKey, createdSecret)
+			k8sClient.Delete(ctx, createdSecret)
+
+			Expect(k8sClient.Create(ctx, Auth)).Should(Succeed())
+
+			createdObject := &artifactregistryv1beta1.Auth{}
+			objectLookUpKey := types.NamespacedName{Name: ObjectName, Namespace: ObjectNamespace}
+
+			// We'll need to retry getting this newly created CronJob, given that creation may not immediately happen.
+			Eventually(func() bool {
+				_ = k8sClient.Get(ctx, objectLookUpKey, createdObject)
+				return createdObject.Status.Error != ""
+			}, timeout, interval).Should(BeTrue())
+			// Let's make sure our Schedule string value was properly converted/handled.
+			Expect(createdObject.Status.Error).Should(Equal("File Name Missing Inside of ConfigMap"))
+
+			k8sClient.Delete(ctx, Auth)
+			k8sClient.Delete(ctx, createdSecret)
 		})
 	})
 

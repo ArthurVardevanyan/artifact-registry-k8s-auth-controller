@@ -165,11 +165,23 @@ func (r *AuthReconciler) Reconcile(reconcilerContext context.Context, req ctrl.R
 		}
 	}
 
+	artifactRegistryAuth.Status.Error = ""
+
 	var gcpCredentials coreV1.ConfigMap
 
 	r.Get(reconcilerContext, client.ObjectKey{Name: artifactRegistryAuth.Spec.WifConfig.ObjectName, Namespace: req.NamespacedName.Namespace}, &gcpCredentials)
 
 	wifConfig := gcpCredentials.Data[artifactRegistryAuth.Spec.WifConfig.FileName]
+	if wifConfig == "" {
+		fmt.Println("Invalid FileName for ConfigMap")
+		artifactRegistryAuth.Status.Error = "File Name Missing Inside of ConfigMap"
+
+		if err := r.Status().Update(reconcilerContext, &artifactRegistryAuth); err != nil {
+			return ctrl.Result{}, fmt.Errorf("unable to update Artifact Registry Auth status: %w", err)
+		} else {
+			return ctrl.Result{}, nil
+		}
+	}
 
 	const expirationSeconds = 3600
 	k8sAuthToken := kubernetesAuthToken(expirationSeconds)
