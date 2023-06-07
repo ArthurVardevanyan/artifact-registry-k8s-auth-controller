@@ -80,7 +80,7 @@ func kubernetesAuthToken(expirationSeconds int) *authenticationV1.TokenRequest {
 	return tokenRequest
 }
 
-func gcpAccessToken(wifConfig []byte) *oauth2.Token {
+func gcpAccessToken(wifConfig []byte) (*oauth2.Token, error) {
 	// https://stackoverflow.com/questions/72275338/get-access-token-for-a-google-cloud-service-account-in-golang
 	var token *oauth2.Token
 	ctx := context.Background()
@@ -90,13 +90,13 @@ func gcpAccessToken(wifConfig []byte) *oauth2.Token {
 	if err == nil {
 		token, err = credentials.TokenSource.Token()
 		if err != nil {
-			println(err.Error())
+			return nil, err
 		}
 	} else {
-		println(err.Error())
+		return nil, err
 	}
 
-	return token
+	return token, nil
 }
 
 func imagePullSecretConfig(REGISTRY string, TOKEN string) string {
@@ -201,8 +201,10 @@ func (r *AuthReconciler) Reconcile(reconcilerContext context.Context, req ctrl.R
 	}
 	err = r.SubResource("token").Create(reconcilerContext, &serviceAccount, k8sAuthToken)
 	if err != nil {
-		print(err.Error())
-		return ctrl.Result{}, nil
+		error = "Unable to Create Kubernetes Token"
+		artifactRegistryAuth.Status.Error = error
+		log.Error(err, error)
+		return updateArtifactRegistryObject(r, reconcilerContext, artifactRegistryAuth, 0)
 	}
 
 	// Save Token to FileSystem
@@ -212,31 +214,52 @@ func (r *AuthReconciler) Reconcile(reconcilerContext context.Context, req ctrl.R
 	err = os.Mkdir(tokenDirectory, 0755)
 	if err != nil {
 		if !strings.Contains(err.Error(), "file exists") {
-			println(err.Error())
+			error = "Controller Error: File Exists"
+			artifactRegistryAuth.Status.Error = error
+			log.Error(err, error)
+			return updateArtifactRegistryObject(r, reconcilerContext, artifactRegistryAuth, 0)
 		}
 	}
 	d1 := []byte(k8sAuthToken.Status.Token)
 	err = os.WriteFile(tokenPath, d1, 0644) // Can this be done without using the filesystem?
 	if err != nil {
-		println(err.Error())
+		error = "Controller Error: Unable to Write File"
+		artifactRegistryAuth.Status.Error = error
+		log.Error(err, error)
+		return updateArtifactRegistryObject(r, reconcilerContext, artifactRegistryAuth, 0)
 	}
 
 	// Generate GCP Auth Token
 	WifConfigJSON := WifConfig{}
 	err = json.Unmarshal([]byte(wifConfig), &WifConfigJSON)
 	if err != nil {
-		println(err.Error())
+		error = "Unable to Incept Wif Object "
+		artifactRegistryAuth.Status.Error = error
+		log.Error(err, error)
+		return updateArtifactRegistryObject(r, reconcilerContext, artifactRegistryAuth, 0)
 	}
 	WifConfigJSON.CredentialSource.File = tokenPath
 	WifConfigByte, err := json.Marshal(WifConfigJSON)
 	if err != nil {
-		println(err.Error())
+		error = "Unable to Stringify Wif Object"
+		artifactRegistryAuth.Status.Error = error
+		log.Error(err, error)
+		return updateArtifactRegistryObject(r, reconcilerContext, artifactRegistryAuth, 0)
 	}
-	token := gcpAccessToken(WifConfigByte)
+	token, err := gcpAccessToken(WifConfigByte)
+	if err != nil {
+		error = "Unable to Create Google Token"
+		artifactRegistryAuth.Status.Error = error
+		log.Error(err, error)
+		return updateArtifactRegistryObject(r, reconcilerContext, artifactRegistryAuth, 0)
+	}
 	artifactRegistryAuth.Status.TokenExpiration = token.Expiry.Format("2006-01-02T15:04:05.999999-07:00")
 	err = os.Remove(tokenPath)
 	if err != nil {
-		println(err.Error())
+		error = "Controller Error: Unable to Remove File"
+		artifactRegistryAuth.Status.Error = error
+		log.Error(err, error)
+		return updateArtifactRegistryObject(r, reconcilerContext, artifactRegistryAuth, 0)
 	}
 
 	// Create Image Pull Secret
@@ -246,7 +269,10 @@ func (r *AuthReconciler) Reconcile(reconcilerContext context.Context, req ctrl.R
 	if err != nil {
 		err = r.Create(reconcilerContext, imagePullSecret)
 		if err != nil {
-			print(err)
+			error = "Unable to Create Image Pull Secret"
+			artifactRegistryAuth.Status.Error = error
+			log.Error(err, error)
+			return updateArtifactRegistryObject(r, reconcilerContext, artifactRegistryAuth, 0)
 		}
 	}
 
