@@ -29,11 +29,11 @@ type Wif struct {
 	RemoveTokenFile        bool
 }
 
-func New(client client.Client, namespace string, configManName string, configMapKey string, serviceAccount string) Wif {
+func New(client client.Client, namespace string, configMapName string, configMapKey string, serviceAccount string) Wif {
 	return Wif{
 		Client:                 client,
 		Namespace:              namespace,
-		ConfigMapName:          configManName,
+		ConfigMapName:          configMapName,
 		ConfigMapKey:           configMapKey,
 		ServiceAccount:         serviceAccount,
 		TokenExpirationSeconds: 3600,
