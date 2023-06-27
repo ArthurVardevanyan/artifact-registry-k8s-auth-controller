@@ -160,8 +160,7 @@ var _ = Describe("Artifact Registry controller", func() {
 				return createdObject.Status.Error != ""
 			}, timeout, interval).Should(BeTrue())
 			// Let's make sure our Schedule string value was properly converted/handled.
-			Expect(createdObject.Status.Error).Should(Equal("File Name Missing Inside of ConfigMap"))
-
+			Expect(createdObject.Status.Error).Should(Equal("configMap key 'credentials_config-bad.json' not found. Error: <nil>"))
 			k8sClient.Delete(ctx, Auth)
 			k8sClient.Delete(ctx, createdSecret)
 		})

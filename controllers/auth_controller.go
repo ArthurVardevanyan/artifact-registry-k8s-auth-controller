@@ -18,22 +18,14 @@ package controllers
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
 	b64 "encoding/base64"
-	"encoding/json"
 
 	coreV1 "k8s.io/api/core/v1"
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	authenticationV1 "k8s.io/api/authentication/v1"
-
-	"golang.org/x/oauth2"
-	auth "golang.org/x/oauth2/google"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -41,6 +33,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	artifactregistryv1beta1 "github.com/ArthurVardevanyan/artifact-registry-k8s-auth-controller/api/v1beta1"
+	"github.com/ArthurVardevanyan/artifact-registry-k8s-auth-controller/pkg/google"
 )
 
 func BoolPointer(b bool) *bool {
@@ -51,52 +44,6 @@ func BoolPointer(b bool) *bool {
 type AuthReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
-}
-
-type WifConfig struct {
-	Type                           string `json:"type"`
-	Audience                       string `json:"audience"`
-	SubjectTokenType               string `json:"subject_token_type"`
-	TokenURL                       string `json:"token_url"`
-	ServiceAccountImpersonationURL string `json:"service_account_impersonation_url"`
-	CredentialSource               struct {
-		File   string `json:"file"`
-		Format struct {
-			Type string `json:"type"`
-		} `json:"format"`
-	} `json:"credential_source"`
-}
-
-func kubernetesAuthToken(expirationSeconds int) *authenticationV1.TokenRequest {
-	ExpirationSeconds := int64(expirationSeconds)
-
-	tokenRequest := &authenticationV1.TokenRequest{
-		Spec: authenticationV1.TokenRequestSpec{
-			Audiences:         []string{"openshift"},
-			ExpirationSeconds: &ExpirationSeconds,
-		},
-	}
-
-	return tokenRequest
-}
-
-func gcpAccessToken(wifConfig []byte) (*oauth2.Token, error) {
-	// https://stackoverflow.com/questions/72275338/get-access-token-for-a-google-cloud-service-account-in-golang
-	var token *oauth2.Token
-	ctx := context.Background()
-	scopes := []string{"https://www.googleapis.com/auth/cloud-platform"}
-
-	credentials, err := auth.CredentialsFromJSON(ctx, []byte(wifConfig), scopes...)
-	if err == nil {
-		token, err = credentials.TokenSource.Token()
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		return nil, err
-	}
-
-	return token, nil
 }
 
 func imagePullSecretConfig(REGISTRY string, TOKEN string) string {
@@ -168,102 +115,16 @@ func (r *AuthReconciler) Reconcile(reconcilerContext context.Context, req ctrl.R
 	//Reset Error
 	artifactRegistryAuth.Status.Error = ""
 
-	// Get ConfigMap
-	var gcpCredentials coreV1.ConfigMap
-	err = r.Get(reconcilerContext, client.ObjectKey{Name: artifactRegistryAuth.Spec.WifConfig.ObjectName, Namespace: req.NamespacedName.Namespace}, &gcpCredentials)
+	wifConfig := google.New(r.Client, artifactRegistryAuth.Namespace, artifactRegistryAuth.Spec.WifConfig.ObjectName, artifactRegistryAuth.Spec.WifConfig.FileName, artifactRegistryAuth.Spec.WifConfig.ServiceAccount)
+	wifTokenSource, err := wifConfig.GetGcpWifTokenWithTokenSource(reconcilerContext)
 	if err != nil {
-		error = "ConfigMap Not Found"
-		artifactRegistryAuth.Status.Error = error
-		log.Error(err, error)
-		return updateArtifactRegistryObject(r, reconcilerContext, artifactRegistryAuth, 0)
-	}
-
-	// Get Wif Config
-	wifConfig := gcpCredentials.Data[artifactRegistryAuth.Spec.WifConfig.FileName]
-	if wifConfig == "" {
-		error = "File Name Missing Inside of ConfigMap"
-		log.Error(errors.New(""), error)
-		artifactRegistryAuth.Status.Error = error
-
-		return updateArtifactRegistryObject(r, reconcilerContext, artifactRegistryAuth, 0)
-	}
-
-	// Generate k8s Auth Token
-	const expirationSeconds = 3600
-	var serviceAccount coreV1.ServiceAccount
-	k8sAuthToken := kubernetesAuthToken(expirationSeconds)
-	err = r.Get(reconcilerContext, client.ObjectKey{Name: artifactRegistryAuth.Spec.WifConfig.ServiceAccount, Namespace: req.NamespacedName.Namespace}, &serviceAccount)
-	if err != nil {
-		error = "Service Account Not Found"
-		artifactRegistryAuth.Status.Error = error
-		log.Error(err, error)
-		return updateArtifactRegistryObject(r, reconcilerContext, artifactRegistryAuth, 0)
-	}
-	err = r.SubResource("token").Create(reconcilerContext, &serviceAccount, k8sAuthToken)
-	if err != nil {
-		error = "Unable to Create Kubernetes Token"
-		artifactRegistryAuth.Status.Error = error
-		log.Error(err, error)
-		return updateArtifactRegistryObject(r, reconcilerContext, artifactRegistryAuth, 0)
-	}
-
-	// Save Token to FileSystem
-	tokenDirectory := "/tmp/tokens/"
-	tokenName := req.NamespacedName.Namespace + "-" + artifactRegistryAuth.Spec.WifConfig.ServiceAccount
-	tokenPath := tokenDirectory + tokenName
-	err = os.Mkdir(tokenDirectory, 0755)
-	if err != nil {
-		if !strings.Contains(err.Error(), "file exists") {
-			error = "Controller Error: File Exists"
-			artifactRegistryAuth.Status.Error = error
-			log.Error(err, error)
-			return updateArtifactRegistryObject(r, reconcilerContext, artifactRegistryAuth, 0)
-		}
-	}
-	d1 := []byte(k8sAuthToken.Status.Token)
-	err = os.WriteFile(tokenPath, d1, 0644) // Can this be done without using the filesystem?
-	if err != nil {
-		error = "Controller Error: Unable to Write File"
-		artifactRegistryAuth.Status.Error = error
-		log.Error(err, error)
-		return updateArtifactRegistryObject(r, reconcilerContext, artifactRegistryAuth, 0)
-	}
-
-	// Generate GCP Auth Token
-	WifConfigJSON := WifConfig{}
-	err = json.Unmarshal([]byte(wifConfig), &WifConfigJSON)
-	if err != nil {
-		error = "Unable to Incept Wif Object "
-		artifactRegistryAuth.Status.Error = error
-		log.Error(err, error)
-		return updateArtifactRegistryObject(r, reconcilerContext, artifactRegistryAuth, 0)
-	}
-	WifConfigJSON.CredentialSource.File = tokenPath
-	WifConfigByte, err := json.Marshal(WifConfigJSON)
-	if err != nil {
-		error = "Unable to Stringify Wif Object"
-		artifactRegistryAuth.Status.Error = error
-		log.Error(err, error)
-		return updateArtifactRegistryObject(r, reconcilerContext, artifactRegistryAuth, 0)
-	}
-	token, err := gcpAccessToken(WifConfigByte)
-	if err != nil {
-		error = "Unable to Create Google Token"
-		artifactRegistryAuth.Status.Error = error
-		log.Error(err, error)
-		return updateArtifactRegistryObject(r, reconcilerContext, artifactRegistryAuth, 0)
-	}
-	artifactRegistryAuth.Status.TokenExpiration = token.Expiry.Format("2006-01-02T15:04:05.999999-07:00")
-	err = os.Remove(tokenPath)
-	if err != nil {
-		error = "Controller Error: Unable to Remove File"
-		artifactRegistryAuth.Status.Error = error
-		log.Error(err, error)
+		artifactRegistryAuth.Status.Error = err.Error()
+		log.Error(err, "Failed to Generate GCP Wif Token from Provided Configuration")
 		return updateArtifactRegistryObject(r, reconcilerContext, artifactRegistryAuth, 0)
 	}
 
 	// Create Image Pull Secret
-	dockerConfig := imagePullSecretConfig(artifactRegistryAuth.Spec.RegistryLocation, token.AccessToken)
+	dockerConfig := imagePullSecretConfig(artifactRegistryAuth.Spec.RegistryLocation, wifTokenSource.RawToken.AccessToken)
 	imagePullSecret := imagePullSecretObject(artifactRegistryAuth.Spec.SecretName, req.NamespacedName.Namespace, dockerConfig)
 	err = r.Update(reconcilerContext, imagePullSecret)
 	if err != nil {
@@ -276,7 +137,7 @@ func (r *AuthReconciler) Reconcile(reconcilerContext context.Context, req ctrl.R
 		}
 	}
 
-	return updateArtifactRegistryObject(r, reconcilerContext, artifactRegistryAuth, expirationSeconds)
+	return updateArtifactRegistryObject(r, reconcilerContext, artifactRegistryAuth, wifConfig.TokenExpirationSeconds)
 }
 
 // SetupWithManager sets up the controller with the Manager.
