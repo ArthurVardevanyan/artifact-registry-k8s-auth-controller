@@ -1,0 +1,126 @@
+---
+apiVersion: tekton.dev/v1beta1
+kind: PipelineRun
+metadata:
+  name: afr-controller
+  annotations:
+    pipelinesascode.tekton.dev/on-event: "[pull_request]"
+    pipelinesascode.tekton.dev/on-target-branch: "[production]"
+    pipelinesascode.tekton.dev/max-keep-runs: "1"
+    pipelinesascode.tekton.dev/task: "https://tekton-hub-api-openshift-pipelines.apps.okd.arthurvardevanyan.com/v1/resource/homelab/task/git-clone/0.9.1/raw"
+    pipelinesascode.tekton.dev/target-namespace: "homelab"
+spec:
+  params:
+    - name: git-url
+      value: "{{ repo_url }}"
+    - name: git-commit
+      value: "{{ revision }}"
+  pipelineSpec:
+    params:
+      - name: git-url
+        description: Repository URL to clone from.
+        type: string
+      - name: git-commit
+        type: string
+
+    workspaces:
+      - name: data
+      - name: git_auth_secret
+
+    tasks:
+      - name: git-clone
+        taskRef:
+          name: git-clone
+          kind: Task
+        params:
+          - name: url
+            value: $(params.git-url)
+          - name: revision
+            value: $(params.git-commit)
+        workspaces:
+          - name: output
+            workspace: data
+          - name: basic-auth
+            workspace: git_auth_secret
+
+      - name: test-build
+        runAfter:
+          - git-clone
+        workspaces:
+          - name: output
+            workspace: data
+        params:
+          - name: revision
+            value: $(params.git-commit)
+        taskSpec:
+          workspaces:
+            - name: output
+              optional: false
+          stepTemplate:
+            name: stepTemplate
+            resources:
+              requests:
+                memory: 500Mi
+                cpu: 500m
+                ephemeral-storage: 2Gi
+              limits:
+                cpu: "4"
+                memory: 5Gi
+                ephemeral-storage: 2Gi
+            securityContext:
+              privileged: false
+              readOnlyRootFilesystem: true
+              runAsNonRoot: true
+              allowPrivilegeEscalation: false
+              seccompProfile:
+                type: RuntimeDefault
+              capabilities:
+                drop:
+                  - ALL
+          volumes:
+            - name: tmp
+              emptyDir:
+                sizeLimit: 2Gi
+          steps:
+            - name: test-build
+              image: registry.arthurvardevanyan.com/homelab/toolbox:latest
+              env:
+                - name: TAG
+                  value: $(params.revision)
+                - name: WORKSPACE_DATA_PATH
+                  value: $(workspaces.output.path)
+              volumeMounts:
+                - name: tmp
+                  mountPath: /tmp
+              script: |
+                set -o errexit
+                set -o nounset
+                set -o pipefail
+
+                cd ${WORKSPACE_DATA_PATH}
+                git config --global --add safe.directory "${WORKSPACE_DATA_PATH}"
+
+                if make ko-build-pipeline; then
+                  exit 0
+                else
+                  exit 1
+                fi
+
+  serviceAccountName: pipeline
+  workspaces:
+    - name: data
+      volumeClaimTemplate:
+        apiVersion: v1
+        kind: PersistentVolumeClaim
+        metadata:
+          name: data
+        spec:
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: "100Mi"
+          storageClassName: longhorn
+    - name: git_auth_secret
+      secret:
+        secretName: "{{ git_auth_secret }}"
