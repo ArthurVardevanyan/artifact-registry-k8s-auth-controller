@@ -28,15 +28,7 @@ go mod tidy
 ```
 
 ```bash
-# https://catalog.redhat.com/software/containers/ubi9/ubi-minimal/
-export KO_DEFAULTBASEIMAGE=registry.access.redhat.com/ubi9-minimal:9.2-691
-export DATE=$(date --utc '+%Y%m%d-%H%M')
-
-# For OpenShift
-export KO_DOCKER_REPO=registry.arthurvardevanyan.com/homelab/artifact-registry-k8s-auth-controller
-# Test Builds / Release Builds
-export EXPIRE=1w # 26w
-ko build --platform=linux/amd64 --bare --sbom none --image-label quay.expires-after="${EXPIRE}" --tags "${DATE}" # Quay Doesn't Support SBOM KO Yet
+make ko-build
 ```
 
 ### Running on the cluster
