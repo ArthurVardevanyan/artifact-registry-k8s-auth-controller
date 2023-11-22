@@ -1,9 +1,9 @@
 module github.com/ArthurVardevanyan/artifact-registry-k8s-auth-controller
 
-go 1.21.4
+go 1.21
 
 require (
-	github.com/onsi/ginkgo/v2 v2.13.0
+	github.com/onsi/ginkgo/v2 v2.13.1
 	github.com/onsi/gomega v1.30.0
 	golang.org/x/oauth2 v0.14.0
 	k8s.io/api v0.28.4
