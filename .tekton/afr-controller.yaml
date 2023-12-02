@@ -62,11 +62,11 @@ spec:
               requests:
                 memory: 500Mi
                 cpu: 500m
-                ephemeral-storage: 2Gi
+                ephemeral-storage: 100Mi
               limits:
                 cpu: "4"
                 memory: 5Gi
-                ephemeral-storage: 2Gi
+                ephemeral-storage: 100Mi
             securityContext:
               privileged: false
               readOnlyRootFilesystem: true
@@ -78,9 +78,9 @@ spec:
                 drop:
                   - ALL
           volumes:
-            - name: tmp
-              emptyDir:
-                sizeLimit: 2Gi
+            - name: cache
+              persistentVolumeClaim:
+                claimName: cache
           steps:
             - name: test-build
               image: registry.arthurvardevanyan.com/homelab/toolbox:latest
@@ -90,7 +90,7 @@ spec:
                 - name: WORKSPACE_DATA_PATH
                   value: $(workspaces.output.path)
               volumeMounts:
-                - name: tmp
+                - name: cache
                   mountPath: /tmp
               script: |
                 set -o errexit
