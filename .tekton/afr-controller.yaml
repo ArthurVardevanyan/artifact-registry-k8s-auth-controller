@@ -119,7 +119,7 @@ spec:
             - ReadWriteOnce
           resources:
             requests:
-              storage: "100Mi"
+              storage: "200Mi"
           storageClassName: longhorn
     - name: git_auth_secret
       secret:
