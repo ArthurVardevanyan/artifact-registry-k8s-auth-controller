@@ -115,7 +115,17 @@ func (r *AuthReconciler) Reconcile(reconcilerContext context.Context, req ctrl.R
 	//Reset Error
 	artifactRegistryAuth.Status.Error = ""
 
-	wifConfig := google.New(r.Client, artifactRegistryAuth.Namespace, artifactRegistryAuth.Spec.WifConfig.ObjectName, artifactRegistryAuth.Spec.WifConfig.FileName, artifactRegistryAuth.Spec.WifConfig.ServiceAccount)
+	wifConfig := google.New(
+		r.Client, artifactRegistryAuth.Namespace,
+		artifactRegistryAuth.Spec.WifConfig.ObjectName,
+		artifactRegistryAuth.Spec.WifConfig.FileName,
+		artifactRegistryAuth.Spec.WifConfig.ServiceAccount,
+		artifactRegistryAuth.Spec.WifConfig.GoogleServiceAccount,
+		artifactRegistryAuth.Spec.WifConfig.GooglePoolProject,
+		artifactRegistryAuth.Spec.WifConfig.GooglePoolName,
+		artifactRegistryAuth.Spec.WifConfig.GoogleProviderName,
+		artifactRegistryAuth.Spec.WifConfig.Type,
+	)
 	wifTokenSource, err := wifConfig.GetGcpWifTokenWithTokenSource(reconcilerContext)
 	if err != nil {
 		artifactRegistryAuth.Status.Error = err.Error()

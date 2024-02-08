@@ -11,3 +11,19 @@ spec:
     objectName: google-wif-config
     serviceAccount: wif-test
     type: configMap
+---
+apiVersion: artifactregistry.arthurvardevanyan.com/v1beta1
+kind: Auth
+metadata:
+  name: example-inline
+  namespace: smoke-tests
+spec:
+  registryLocation: us-central1
+  secretName: artifact-registry-auth-inline
+  wifConfig:
+    serviceAccount: wif-test
+    googleServiceAccount: wif-test@afr-operator-5560235161.iam.gserviceaccount.com
+    googlePoolProject: "448527874743"
+    googlePoolName: afr-operator-pool
+    googleProviderName: afr-operator-provider
+    type: inline

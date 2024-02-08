@@ -20,25 +20,42 @@ import (
 
 type Wif struct {
 	client.Client
-	Namespace              string
-	ConfigMapName          string
-	ConfigMapKey           string
-	ServiceAccount         string
-	TokenExpirationSeconds int
-	TokenDirectory         string
-	RemoveTokenFile        bool
+	Namespace                      string
+	ConfigMapName                  string
+	ConfigMapKey                   string
+	ServiceAccount                 string
+	TokenExpirationSeconds         int
+	TokenDirectory                 string
+	RemoveTokenFile                bool
+	Audience                       string
+	ServiceAccountImpersonationUrl string
+	ConfigType                     string
 }
 
-func New(client client.Client, namespace string, configMapName string, configMapKey string, serviceAccount string) Wif {
+func New(
+	client client.Client,
+	namespace string,
+	configMapName string,
+	configMapKey string,
+	serviceAccount string,
+	googleServiceAccount string,
+	googlePoolProject string,
+	googlePoolName string,
+	googleProviderName string,
+	configType string,
+) Wif {
 	return Wif{
-		Client:                 client,
-		Namespace:              namespace,
-		ConfigMapName:          configMapName,
-		ConfigMapKey:           configMapKey,
-		ServiceAccount:         serviceAccount,
-		TokenExpirationSeconds: 3600,
-		TokenDirectory:         "/tmp/tokens/",
-		RemoveTokenFile:        true,
+		Client:                         client,
+		Namespace:                      namespace,
+		ConfigMapName:                  configMapName,
+		ConfigMapKey:                   configMapKey,
+		ServiceAccount:                 serviceAccount,
+		ConfigType:                     configType,
+		Audience:                       "//iam.googleapis.com/projects/" + googlePoolProject + "/locations/global/workloadIdentityPools/" + googlePoolName + "/providers/" + googleProviderName,
+		ServiceAccountImpersonationUrl: "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/" + googleServiceAccount + ":generateAccessToken",
+		TokenExpirationSeconds:         3600,
+		TokenDirectory:                 "/tmp/tokens/",
+		RemoveTokenFile:                true,
 	}
 }
 
@@ -97,23 +114,55 @@ func (r *Wif) GetGcpWifTokenWithTokenSource(ctx context.Context) (*RawTokenSourc
 }
 
 func (r *Wif) GetWifConfig(ctx context.Context) ([]byte, error) {
-	var gcpCredentials coreV1.ConfigMap
-	err := r.Get(ctx, client.ObjectKey{Name: r.ConfigMapName, Namespace: r.Namespace}, &gcpCredentials)
-	if err != nil {
-		return nil, fmt.Errorf("configMap '%s' not found. Error: %v", r.ConfigMapName, err)
+	var wifConfig string
+	var keyFound bool
+
+	WifConfigJSON := WifConfigJson{
+		Type:                           "external_account",
+		Audience:                       r.Audience,
+		SubjectTokenType:               "urn:ietf:params:oauth:token-type:jwt",
+		TokenURL:                       "https://sts.googleapis.com/v1/token",
+		ServiceAccountImpersonationURL: r.ServiceAccountImpersonationUrl,
+		CredentialSource: struct {
+			File   string "json:\"file\""
+			Format struct {
+				Type string "json:\"type\""
+			} "json:\"format\""
+		}{
+			File: "",
+			Format: struct {
+				Type string "json:\"type\""
+			}{
+				Type: "text",
+			},
+		},
 	}
 
-	// Get Wif Config
-	wifConfig, keyFound := gcpCredentials.Data[r.ConfigMapKey]
-	if !keyFound {
+	if r.ConfigType != "inline" {
+		var gcpCredentials coreV1.ConfigMap
+		err := r.Get(ctx, client.ObjectKey{Name: r.ConfigMapName, Namespace: r.Namespace}, &gcpCredentials)
+		if err != nil {
+			return nil, fmt.Errorf("configMap '%s' not found. Error: %v", r.ConfigMapName, err)
+		}
 
-		return nil, fmt.Errorf("configMap key '%s' not found. Error: %v", r.ConfigMapKey, err)
+		// Get Wif Config
+		wifConfig, keyFound = gcpCredentials.Data[r.ConfigMapKey]
+		if !keyFound {
+
+			return nil, fmt.Errorf("configMap key '%s' not found. Error: %v", r.ConfigMapKey, err)
+		}
+
+		// Generate GCP wif config
+		err = json.Unmarshal([]byte(wifConfig), &WifConfigJSON)
+		if err != nil {
+			return nil, fmt.Errorf("unable to unmarshal wif config object. Error: %v", err)
+		}
 	}
 
 	// Generate k8s Auth Token
 	var serviceAccount coreV1.ServiceAccount
 	k8sAuthToken := kubernetesAuthToken(r.TokenExpirationSeconds)
-	err = r.Get(ctx, client.ObjectKey{Name: r.ServiceAccount, Namespace: r.Namespace}, &serviceAccount)
+	err := r.Get(ctx, client.ObjectKey{Name: r.ServiceAccount, Namespace: r.Namespace}, &serviceAccount)
 	if err != nil {
 
 		return nil, fmt.Errorf("service Account '%s' Not Found. Error: %v", r.ServiceAccount, err)
@@ -138,12 +187,6 @@ func (r *Wif) GetWifConfig(ctx context.Context) ([]byte, error) {
 		return nil, fmt.Errorf("unable to write token file '%s'. Error: %v", tokenPath, err)
 	}
 
-	// Generate GCP wif config
-	WifConfigJSON := WifConfigJson{}
-	err = json.Unmarshal([]byte(wifConfig), &WifConfigJSON)
-	if err != nil {
-		return nil, fmt.Errorf("unable to unmarshal wif config object. Error: %v", err)
-	}
 	WifConfigJSON.CredentialSource.File = tokenPath
 	WifConfigByte, err := json.Marshal(WifConfigJSON)
 	if err != nil {
