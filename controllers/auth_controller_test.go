@@ -61,7 +61,12 @@ var _ = Describe("Artifact Registry controller", func() {
 	var ConfigName = getEnv("CONFIG_NAME", "google-wif-config")
 	var ServiceAccount = getEnv("SERVICE_ACCOUNT", "wif-test")
 
-	Context("Creating an Auth Object", func() {
+	var GoogleServiceAccount = getEnv("GOOGLE_SERVICE_ACCOUNT", "wif-test@afr-operator-5560235161.iam.gserviceaccount.com")
+	var GooglePoolProject = getEnv("GOOGLE_POOL_PROJECT", "448527874743")
+	var GooglePoolName = getEnv("GOOGLE_POOL_NAME", "afr-operator-pool")
+	var GoogleProviderName = getEnv("GOOGLE_PROVIDER_NAME", "afr-operator-provider")
+
+	Context("Creating an Auth Object with Credential File", func() {
 		It("Should Read a WIF ConfigMap, and Create a Secret with a Short Lived Token", func() {
 			By("By creating a new Artifact Registry Auth Object")
 			// ctx := context.Background()
@@ -82,6 +87,113 @@ var _ = Describe("Artifact Registry controller", func() {
 						ObjectName:     ConfigName,
 						ServiceAccount: ServiceAccount,
 						Type:           "configMap",
+					},
+				},
+			}
+
+			secretLookUpKey := types.NamespacedName{Name: SecretName, Namespace: ObjectNamespace}
+			createdSecret := &v1.Secret{}
+
+			k8sClient.Delete(ctx, Auth)
+			k8sClient.Get(ctx, secretLookUpKey, createdSecret)
+			k8sClient.Delete(ctx, createdSecret)
+
+			Expect(k8sClient.Create(ctx, Auth)).Should(Succeed())
+
+			objectLookUpKey := types.NamespacedName{Name: ObjectName, Namespace: ObjectNamespace}
+			createdObject := &artifactregistryv1beta1.Auth{}
+
+			// We'll need to retry getting this newly created CronJob, given that creation may not immediately happen.
+			Eventually(func() bool {
+				err := k8sClient.Get(ctx, objectLookUpKey, createdObject)
+				return err == nil
+			}, timeout, interval).Should(BeTrue())
+			// Let's make sure our Schedule string value was properly converted/handled.
+			Expect(createdObject.Spec.SecretName).Should(Equal(SecretName))
+
+			// We'll need to retry getting this newly created CronJob, given that creation may not immediately happen.
+			Eventually(func() bool {
+				err := k8sClient.Get(ctx, secretLookUpKey, createdSecret)
+				return err == nil
+			}, timeout, interval).Should(BeTrue())
+			// Let's make sure our Schedule string value was properly converted/handled.
+
+			k8sClient.Delete(ctx, Auth)
+			k8sClient.Delete(ctx, createdSecret)
+
+		})
+
+		It("Should Return an Error for Invalid ConfigMap file", func() {
+			By("By creating an Artifact Registry Auth Object with an Invalid ConfigMap Fle")
+			// ctx := context.Background()
+			Auth := &artifactregistryv1beta1.Auth{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "artifactregistry.arthurvardevanyan.com/v1beta1",
+					Kind:       "Auth",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      ObjectName,
+					Namespace: ObjectNamespace,
+				},
+				Spec: artifactregistryv1beta1.AuthSpec{
+					RegistryLocation: RegistryLocation,
+					SecretName:       SecretName,
+					WifConfig: artifactregistryv1beta1.WifConfig{
+						FileName:       "credentials_config-bad.json",
+						ObjectName:     ConfigName,
+						ServiceAccount: ServiceAccount,
+						Type:           "configMap",
+					},
+				},
+			}
+
+			secretLookUpKey := types.NamespacedName{Name: SecretName, Namespace: ObjectNamespace}
+			createdSecret := &v1.Secret{}
+
+			k8sClient.Delete(ctx, Auth)
+			k8sClient.Get(ctx, secretLookUpKey, createdSecret)
+			k8sClient.Delete(ctx, createdSecret)
+
+			Expect(k8sClient.Create(ctx, Auth)).Should(Succeed())
+
+			createdObject := &artifactregistryv1beta1.Auth{}
+			objectLookUpKey := types.NamespacedName{Name: ObjectName, Namespace: ObjectNamespace}
+
+			// We'll need to retry getting this newly created CronJob, given that creation may not immediately happen.
+			Eventually(func() bool {
+				_ = k8sClient.Get(ctx, objectLookUpKey, createdObject)
+				return createdObject.Status.Error != ""
+			}, timeout, interval).Should(BeTrue())
+			// Let's make sure our Schedule string value was properly converted/handled.
+			Expect(createdObject.Status.Error).Should(Equal("configMap key 'credentials_config-bad.json' not found. Error: <nil>"))
+			k8sClient.Delete(ctx, Auth)
+			k8sClient.Delete(ctx, createdSecret)
+		})
+	})
+
+	Context("Creating an Auth Object with Inline File", func() {
+		It("Should Read a WIF ConfigMap, and Create a Secret with a Short Lived Token", func() {
+			By("By creating a new Artifact Registry Auth Object")
+			// ctx := context.Background()
+			Auth := &artifactregistryv1beta1.Auth{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "artifactregistry.arthurvardevanyan.com/v1beta1",
+					Kind:       "Auth",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      ObjectName,
+					Namespace: ObjectNamespace,
+				},
+				Spec: artifactregistryv1beta1.AuthSpec{
+					RegistryLocation: RegistryLocation,
+					SecretName:       SecretName,
+					WifConfig: artifactregistryv1beta1.WifConfig{
+						ServiceAccount:       ServiceAccount,
+						GoogleServiceAccount: GoogleServiceAccount,
+						GooglePoolProject:    GooglePoolProject,
+						GooglePoolName:       GooglePoolName,
+						GoogleProviderName:   GoogleProviderName,
+						Type:                 "inline",
 					},
 				},
 			}

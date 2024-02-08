@@ -21,15 +21,31 @@ import (
 )
 
 type WifConfig struct {
-	// Object Type, must be ConfigMap
-	// +kubebuilder:validation:Enum=configMap
+	// Object Type, must be configMap or inline
+	// +kubebuilder:validation:Enum=configMap;inline
+	// +kubebuilder:validation:Required
 	Type string `json:"type"`
 	// The Name of the Kubernetes Objec Containing the Workload Identity Json Config
+	// +kubebuilder:validation:Optional
 	ObjectName string `json:"objectName"`
 	// The Name of the File Within the Object, Generally: credentials_config.json
+	// +kubebuilder:validation:Optional
 	FileName string `json:"fileName"`
 	// The Kubernetes Service Account That is Bound to a Google Service Account with Artifact Registry Reader
+	// +kubebuilder:validation:Optional
 	ServiceAccount string `json:"serviceAccount"`
+	// The Google Service Account That is to be Bound to a Kubernetes Service Account with Artifact Registry Reader
+	// +kubebuilder:validation:Optional
+	GoogleServiceAccount string `json:"googleServiceAccount"`
+	// The GCP Project in which the Workload Identity Pool/Provider is Located
+	// +kubebuilder:validation:Optional
+	GooglePoolProject string `json:"googlePoolProject"`
+	// Name of the Workload Identity Pool
+	// +kubebuilder:validation:Optional
+	GooglePoolName string `json:"googlePoolName"`
+	// Name of the Workload Identity Pool
+	// +kubebuilder:validation:Optional
+	GoogleProviderName string `json:"googleProviderName"`
 }
 
 // Contains the Fields Related to configuring GCP Workload Identity Federation

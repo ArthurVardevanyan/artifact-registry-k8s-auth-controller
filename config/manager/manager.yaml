@@ -28,7 +28,7 @@ spec:
   selector:
     matchLabels:
       control-plane: controller-manager
-  replicas: 1
+  replicas: 2
   template:
     metadata:
       annotations:
@@ -36,6 +36,10 @@ spec:
       labels:
         control-plane: controller-manager
     spec:
+      tolerations:
+        - key: node-role.kubernetes.io/infra
+          operator: Exists
+          effect: NoSchedule
       # TODO(user): Uncomment the following code to configure the nodeAffinity expression
       # according to the platforms which are supported by your solution.
       # It is considered best practice to support multiple architectures. You can
@@ -94,9 +98,8 @@ spec:
           resources:
             limits:
               cpu: 500m
-              memory: 512Mi
+              memory: 3Gi
             requests:
-              cpu: 10m
-              memory: 256Mi
+              cpu: 50m
       serviceAccountName: controller-manager
       terminationGracePeriodSeconds: 10
