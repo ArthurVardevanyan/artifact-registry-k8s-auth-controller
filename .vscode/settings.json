@@ -33,6 +33,7 @@
     "artifactregistry",
     "artifactregistryv",
     "auths",
+    "ceph",
     "clientset",
     "clusterrolebinding",
     "controllerutil",
