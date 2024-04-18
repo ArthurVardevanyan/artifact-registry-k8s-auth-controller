@@ -2,10 +2,10 @@
 # Image URL to use all building/pushing image targets
 IMG ?= controller:latest
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
-ENVTEST_K8S_VERSION = 1.28.0
+ENVTEST_K8S_VERSION = 1.29.3
 export KO_DOCKER_REPO=registry.arthurvardevanyan.com/homelab/artifact-registry-k8s-auth-controller
-# https://catalog.redhat.com/software/containers/ubi9/ubi-minimal/615bd9b4075b022acc111bf5?architecture=amd64&image=654d0f69e3a98d1bb1e031d2
-export KO_DEFAULTBASEIMAGE=registry.access.redhat.com/ubi9-minimal:9.3-1361.1699548032
+# https://catalog.redhat.com/software/containers/ubi9-micro/61832b36dd607bfc82e66399?architecture=amd64&image=65e0ac6949fc66cfe14185b4
+export KO_DEFAULTBASEIMAGE=registry.access.redhat.com/ubi9-micro:9.3-15
 TAG ?= $(shell date --utc '+%Y%m%d-%H%M')
 EXPIRE ?= 1d
 
@@ -149,8 +149,8 @@ CONTROLLER_GEN ?= $(LOCALBIN)/controller-gen
 ENVTEST ?= $(LOCALBIN)/setup-envtest
 
 ## Tool Versions
-KUSTOMIZE_VERSION ?= v3.8.7
-CONTROLLER_TOOLS_VERSION ?= v0.11.1
+KUSTOMIZE_VERSION ?= v5.0.1
+CONTROLLER_TOOLS_VERSION ?= v0.14.0
 
 KUSTOMIZE_INSTALL_SCRIPT ?= "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh"
 .PHONY: kustomize
