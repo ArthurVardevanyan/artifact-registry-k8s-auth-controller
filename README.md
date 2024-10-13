@@ -1,4 +1,6 @@
-# artifact-registry-k8s-auth-controller (WIP)
+# artifact-registry-k8s-auth-controller (Deprecated)
+
+## Refer to <https://github.com/ArthurVardevanyan/container-registry-k8s-auth-controller>
 
 This is an abstraction to convert the openshift monitoring, and openshift user workload monitoring configmaps into custom resources.
 
